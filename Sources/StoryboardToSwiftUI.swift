@@ -77,7 +77,7 @@ public struct StoryboardToSwiftUI {
     }
 
     static func createSwiftUIView(name: String) -> String? {
-        guard let templateURL = Bundle.main.url(forResource: "BaseSwiftUIView", withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
+        guard let templateURL = Bundle.module.url(forResource: "BaseSwiftUIView", withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
             print("Failed to load template file.")
             return nil
         }
