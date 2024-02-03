@@ -1,0 +1,5 @@
+public struct {{ SCREEN_NAME }}: View {
+    public init() {}
+
+    {{ BODY }}
+}
