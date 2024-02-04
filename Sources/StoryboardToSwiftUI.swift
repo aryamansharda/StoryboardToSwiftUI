@@ -150,8 +150,8 @@ public struct StoryboardToSwiftUI {
 
         return (node.children ?? []).compactMap { child in
             guard let name = child.name, let type = SupportedElements(rawValue: name), let element = child as? XMLElement else {
-                print("Unrecognized UI element type: \(child.debugDescription)")
-                return ""
+//                print("Unrecognized UI element type: \(child.debugDescription)")
+                return nil
             }
             
             do {
@@ -167,7 +167,7 @@ public struct StoryboardToSwiftUI {
                 case .view:
                     return createView(element)
                 case .subviews:
-                    return createSubviews(element)
+                    return try createSubviews(element)
                 case .textField:
                     return createTextField(element)
                 case .button:
@@ -249,8 +249,8 @@ public struct StoryboardToSwiftUI {
         return "// \(customClass)"
     }
 
-    static func createSubviews(_ node: XMLElement) -> String {
-        ""
+    static func createSubviews(_ node: XMLElement) throws -> String {
+        evaluateViewElement(node)
     }
 
     static func createTextField(_ node: XMLElement) -> String {
