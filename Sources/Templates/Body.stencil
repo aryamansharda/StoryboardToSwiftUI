@@ -1,0 +1,3 @@
+public var body: some View {
+     {{ CONTENT }}
+ }

@@ -19,7 +19,7 @@ extension String {
         return nearestPowerOf2
     }
 
-    var toCamelCase: String {
+    var camelCase: String {
         let alphanumericInput = self
             .replacingOccurrences(of: "[^a-zA-Z0-9 ]", with: "", options: .regularExpression)
             .components(separatedBy: " ")
@@ -52,5 +52,19 @@ extension String {
 
         let snakeCaseString = alphanumericInput.joined(separator: "_")
         return snakeCaseString
+    }
+
+    var textToken: String {
+        // Check if the input string ends with "Label"
+        guard self.hasSuffix("Label") else {
+            return self
+        }
+
+        // Remove the "Label" suffix
+        let trimmedString = String(self.dropLast(5))
+
+        // Make the first character lowercase and add a dot at the front
+        let result = "." + trimmedString.prefix(1).lowercased() + trimmedString.dropFirst()
+        return result
     }
 }
