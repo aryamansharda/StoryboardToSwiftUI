@@ -52,6 +52,7 @@ public struct StoryboardToSwiftUI {
                 }
 
 //                let body = evaluateViewController(viewController)
+                // TODO: Run swiftformat, ask the user which class they want to execute this on
 
                 let hydratedSwiftUIScreen = screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content)
                 print(hydratedSwiftUIScreen)
@@ -163,7 +164,7 @@ public struct StoryboardToSwiftUI {
                 case .imageView:
                     return try createImage(element)
                 case .stackView:
-                    return createStackView(element)
+                    return try createStackView(element)
                 case .view:
                     return createView(element)
                 case .subviews:
@@ -177,7 +178,7 @@ public struct StoryboardToSwiftUI {
                 print(error)
                 return nil
             }
-        }.joined()
+        }.joined(separator: "\n")
     }
 
     // Use the template to add anything you want on all of them, then you can use this to add anything you want on a case by case basis
@@ -210,7 +211,7 @@ public struct StoryboardToSwiftUI {
 
         // This is all Turo specific now
         if let customClass = node.attribute(forName: "customClass"), let className = customClass.stringValue, className.hasSuffix("Label") {
-            output.append(".textToken(\(className.textToken)))")
+            output.append(".textToken(\(className.textToken))")
         }
 
         return output.joined()
@@ -236,8 +237,27 @@ public struct StoryboardToSwiftUI {
         return output.joined()
     }
 
-    static func createStackView(_ node: XMLElement) -> String {
-        ""
+    static func createStackView(_ node: XMLElement) throws -> String {
+        guard let template = try loadTemplate(name: "Stack") else { throw ConversionError.failedToLoadTemplate }
+        
+        // V/H Stack orientation
+        var direction = "V"
+        if let axisElement = node.attribute(forName: "axis"), let axisValue = axisElement.stringValue {
+            if axisValue == "vertical" {
+                direction = "V"
+            } else if axisValue == "horizontal" {
+                direction = "H"
+            }
+        }
+
+        // Set to default spacing since we don't want any StackView to be without a space specified
+        let defaultSpacing: Int = 8
+        let spacing = String(node.attribute(forName: "spacing")?.stringValue?.nearestPowerOf2 ?? defaultSpacing)
+
+        return template
+            .replacingOccurrences(of: "{{ AXIS }}", with: direction)
+            .replacingOccurrences(of: "{{ SPACE_AMOUNT }}", with: spacing)
+            .replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
 
     static func createView(_ node: XMLElement) -> String {
