@@ -45,16 +45,22 @@ public struct StoryboardToSwiftUI {
         switch contentType {
         case .viewControllers(let viewControllers):
             for viewController in viewControllers {
+
+                actionNames.removeAll()
+                localizedText.removeAll()
+
+                // Gets the class name from the ViewController
                 let screenName = nameProvider.createSwiftUINameFromViewController(viewController)
-                
+
                 guard let screenTemplate = createBaseView(name: screenName), let content = evaluateViewController(viewController) else {
                     continue
                 }
 
-//                let body = evaluateViewController(viewController)
-                // TODO: Run swiftformat, ask the user which class they want to execute this on
+                let hydratedSwiftUIScreen = [
+                    screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
+                    createLocalizedTextExtension(className: screenName)
+                ].joined()
 
-                let hydratedSwiftUIScreen = screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content)
                 print(hydratedSwiftUIScreen)
             }
         case .views(let views):
@@ -279,5 +285,36 @@ public struct StoryboardToSwiftUI {
 
     static func createButton(_ node: XMLElement) -> String {
         ""
+    }
+
+    static func createLocalizedTextExtension(className: String) -> String {
+        guard !localizedText.isEmpty else { return "" }
+
+        let localizedTextStencil = """
+
+         var {{ VARIABLE_NAME }}: String {
+         NSLocalizedString(
+            "{{ KEY }}",
+            value: "{{ VALUE }}",
+            comment: \(placeholder)
+         )
+         }
+         """
+
+        var localizedStringOutputBuilder = String()
+        for localizedItem in localizedText {
+            var result = localizedTextStencil.replacingOccurrences(of: "{{ VARIABLE_NAME }}", with: localizedItem.camelCase)
+            result = result.replacingOccurrences(of: "{{ KEY }}", with: localizedItem.snakeCase)
+            result = result.replacingOccurrences(of: "{{ VALUE }}", with: localizedItem)
+            localizedStringOutputBuilder += result + "\n"
+        }
+
+        let stencil = """
+         extension \(className) {
+           \(localizedStringOutputBuilder.trimmingCharacters(in: .whitespaces))
+         }
+         """
+
+        return stencil
     }
 }
