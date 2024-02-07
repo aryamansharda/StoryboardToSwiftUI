@@ -44,26 +44,26 @@ public struct StoryboardToSwiftUI {
 
         switch contentType {
         case .viewControllers(let viewControllers):
-            for viewController in viewControllers {
+            let viewController = promptUserForViewControllerSelction(viewControllers: viewControllers)
 
-                actionNames.removeAll()
-                localizedText.removeAll()
+            actionNames.removeAll()
+            localizedText.removeAll()
 
-                // Gets the class name from the ViewController
-                let screenName = nameProvider.createSwiftUINameFromViewController(viewController)
-
-                guard let screenTemplate = createBaseView(name: screenName), let content = evaluateViewController(viewController) else {
-                    continue
-                }
-
-                let hydratedSwiftUIScreen = [
-                    screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
-                    createLocalizedTextExtension(className: screenName)
-                ].joined()
-
-                print(hydratedSwiftUIScreen)
+            // Gets the class name from the ViewController
+            let screenName = nameProvider.createSwiftUINameFromViewController(viewController)
+            guard let screenTemplate = createBaseView(name: screenName), let content = evaluateViewController(viewController) else {
+                return
             }
+
+            let hydratedSwiftUIScreen = [
+                screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
+                (try? createLocalizedTextExtension(className: screenName)) ?? ""
+            ].joined()
+
+            print(hydratedSwiftUIScreen)
+
         case .views(let views):
+            // TODO:
             for view in views {
 
             }
@@ -144,23 +144,19 @@ public struct StoryboardToSwiftUI {
         }
 
         return output
-
     }
 
     static func evaluateViewElement(_ node: XMLNode) -> String {
         guard node.childCount != 0 else {
             // This node is a leaf node
-            // Leaf node, perform the action
-            // TODO: This might be when it's an unrecognized component
             return node.name ?? "" + "\n"
         }
 
         return (node.children ?? []).compactMap { child in
             guard let name = child.name, let type = SupportedElements(rawValue: name), let element = child as? XMLElement else {
-//                print("Unrecognized UI element type: \(child.debugDescription)")
                 return nil
             }
-            
+
             do {
                 switch type {
                 case .label:
@@ -187,6 +183,7 @@ public struct StoryboardToSwiftUI {
         }.joined(separator: "\n")
     }
 
+    // TODO: Move to README
     // Use the template to add anything you want on all of them, then you can use this to add anything you want on a case by case basis
     // The goal is that someone can easily come in and replace this with their own implementation
     // So, you're thinking just give them the XMLNode and all of the data and they can use the template + their business logic to generate the ouptut string
@@ -245,7 +242,7 @@ public struct StoryboardToSwiftUI {
 
     static func createStackView(_ node: XMLElement) throws -> String {
         guard let template = try loadTemplate(name: "Stack") else { throw ConversionError.failedToLoadTemplate }
-        
+
         // V/H Stack orientation
         var direction = "V"
         if let axisElement = node.attribute(forName: "axis"), let axisValue = axisElement.stringValue {
@@ -287,34 +284,44 @@ public struct StoryboardToSwiftUI {
         ""
     }
 
-    static func createLocalizedTextExtension(className: String) -> String {
-        guard !localizedText.isEmpty else { return "" }
-
-        let localizedTextStencil = """
-
-         var {{ VARIABLE_NAME }}: String {
-         NSLocalizedString(
-            "{{ KEY }}",
-            value: "{{ VALUE }}",
-            comment: \(placeholder)
-         )
-         }
-         """
-
-        var localizedStringOutputBuilder = String()
-        for localizedItem in localizedText {
-            var result = localizedTextStencil.replacingOccurrences(of: "{{ VARIABLE_NAME }}", with: localizedItem.camelCase)
-            result = result.replacingOccurrences(of: "{{ KEY }}", with: localizedItem.snakeCase)
-            result = result.replacingOccurrences(of: "{{ VALUE }}", with: localizedItem)
-            localizedStringOutputBuilder += result + "\n"
+    static func createLocalizedTextExtension(className: String) throws -> String {
+        guard let localizedTextExtensionTemplate = try loadTemplate(name: "LocalizedTextContainer"),
+              let localizedTextTemplate = try loadTemplate(name: "LocalizedText") else {
+            throw ConversionError.failedToLoadTemplate
         }
 
-        let stencil = """
-         extension \(className) {
-           \(localizedStringOutputBuilder.trimmingCharacters(in: .whitespaces))
-         }
-         """
+        guard !localizedText.isEmpty else { return "" }
 
-        return stencil
+        let localizedStringOutput = localizedText.map { localizedItem in
+            let result = localizedTextTemplate
+                .replacingOccurrences(of: "{{ VARIABLE_NAME }}", with: localizedItem.camelCase)
+                .replacingOccurrences(of: "{{ KEY }}", with: localizedItem.snakeCase)
+                .replacingOccurrences(of: "{{ VALUE }}", with: localizedItem)
+            return result
+        }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
+
+        return localizedTextExtensionTemplate
+            .replacingOccurrences(of: "{{ CONTENT }}", with: localizedStringOutput)
+            .replacingOccurrences(of: "{{ CLASS_NAME }}", with: className)
+            .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: placeholder)
+
     }
 }
+
+// MARK: User Input
+extension StoryboardToSwiftUI {
+    static func promptUserForViewControllerSelction(viewControllers: [XMLElement]) -> XMLElement {
+        print("Found \(viewControllers.count) view controllers.")
+        print("Please select one:")
+
+        for (index, viewController) in viewControllers.enumerated() {
+            print("\(index + 1): \(nameProvider.createSwiftUINameFromViewController(viewController))\n")
+        }
+
+        let selectedViewControllerIndex = Int(readLine(strippingNewline: true) ?? "0") ?? 0
+        let viewController = viewControllers[selectedViewControllerIndex - 1]
+        return viewController
+    }
+}
+
+// TODO: Find backgroundColor

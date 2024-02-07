@@ -1,0 +1,7 @@
+ var {{ VARIABLE_NAME }}: String {
+     NSLocalizedString(
+        "{{ KEY }}",
+        value: "{{ VALUE }}",
+        comment: {{ PLACEHOLDER }}
+     )
+ }
