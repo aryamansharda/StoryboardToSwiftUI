@@ -1,138 +1,45 @@
+//
+//  File.swift
+//  
+//
+//  Created by Aryaman Sharda on 2/10/24.
+//
+
 import Foundation
 
-enum SupportedElements: String {
-    case label
-    case scrollView
-    case imageView
-    case stackView
-    case view
-    case subviews
-    case textField
-    case button
-    case tableView
-    case tableViewCellContentView
+protocol CodeGenerator {
+    var actionNames: [String] { get set }
+    var localizedText: [String]  { get set }
+
+
+    func evaluateViewController(_ viewController: XMLElement) -> String?
+    func evaluateSubviews(_ containerView: XMLElement) -> String?
+    func evaluateViewElement(_ node: XMLNode) -> String
+    func loadTemplate(name: String) throws -> String?
+
+    func createLabel(_ node: XMLElement) throws -> String
+    func createScrollView(_ node: XMLElement) throws -> String
+    func createImage(_ node: XMLElement) throws -> String
+    func createView(_ node: XMLElement) -> String
+    func createSubviews(_ node: XMLElement) throws -> String
+    func createTableView(_ node: XMLElement) throws -> String
+    func createTableViewCellContentView(_ node: XMLElement) throws -> String
+    func createTextField(_ node: XMLElement) throws -> String
+    func createButton(_ node: XMLElement) -> String
+    func createLocalizedTextExtension(className: String) throws -> String
 }
 
-@main
-public struct StoryboardToSwiftUI {
-
-    enum StoryboardContentType {
-        case viewControllers([XMLElement])
-        case views([XMLElement])
-    }
-
-    static let nameProvider: ViewControllerNameProvider = TuroViewControllerNameProvider()
-    static let placeholder = "\"comments needed\"" //<" + "#T##String#" + ">"
-
-    static var actionNames = [String]()
-    static var localizedText = [String]()
-
-    public static func main() {
-        print("Please provide the absolute path to the .storyboard file:")
-        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/Extras.storyboard"
-//        var filePath = readLine(strippingNewline: true)
-//        if let path = filePath, path.isEmpty {
-//
-//        }
-
-        print(filePath)
-        // Loads the Storyboard / View and returns the top-levl XML node
-//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/BoostPricingInfoViewController.storyboard"
-        guard let rootNode = readXMLFile(filePath: filePath) else {
-            print("Unable to load valid XML data.")
-            return
-        }
-
-        guard let contentType = identifyStoryboardContentType(root: rootNode) else {
-            print("Unable to determine .storyboard file contents.")
-            return
-        }
-
-        switch contentType {
-        case .viewControllers(let viewControllers):
-            let viewController = promptUserForViewControllerSelction(viewControllers: viewControllers)
-
-            actionNames.removeAll()
-            localizedText.removeAll()
-
-            // Gets the class name from the ViewController
-            let screenName = nameProvider.createSwiftUINameFromViewController(viewController)
-
-            let defaultGenerator = DefaultCodeGenerator()
-
-            guard let screenTemplate = createBaseView(name: screenName), let content = defaultGenerator.evaluateViewController(viewController) else {
-                return
-            }
-
-            let hydratedSwiftUIScreen = [
-                screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
-                (try? createLocalizedTextExtension(className: screenName)) ?? ""
-            ].joined()
-
-//            print(hydratedSwiftUIScreen)
-
-            try! SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen)
-        case .views(let views):
-            // TODO:
-            for view in views {
-
-            }
-        }
-    }
-
-    // MARK: File I/O
-    static func readXMLFile(filePath: String) -> XMLElement? {
-        let url = URL(fileURLWithPath: filePath)
-        guard let xmlDoc = try? XMLDocument(contentsOf: url, options: []), let root = xmlDoc.rootElement() else {
-            return nil
-        }
-
-        return root
-    }
-
-    // MARK: Pre-Processing
-    static func identifyStoryboardContentType(root: XMLElement) -> StoryboardContentType? {
-        // Checks whether the storyboard contains a list of viewControllers
-        if let scenes = root.elements(forName: "scenes").first {
-            let sceneObjects = scenes.elements(forName: "scene")
-            let objects = sceneObjects.flatMap { $0.elements(forName: "objects") }
-            let viewControllers = objects.flatMap { $0.elements(forName: "viewController") }
-            return .viewControllers(viewControllers)
-        }
-
-        // Checks whether the storyboard contains a list of views
-        if let objects = root.elements(forName: "objects").first {
-            let views = objects.elements(forName: "view")
-            return .views(views)
-        }
-
-        return nil
-    }
-
-    static func retrieveViewName(_ view: XMLElement) -> String {
-        let defaultViewSuffix = "View"
-        var recommendedClassName = defaultViewSuffix
-
-        if var retrievedCustomClass = view.attribute(forName: "customClass")?.stringValue {
-            retrievedCustomClass = retrievedCustomClass.replacingOccurrences(of: "RR", with: "")
-            recommendedClassName = retrievedCustomClass
-        }
-
-        return recommendedClassName
-    }
-
-    // MARK: ~Hydration
-    static func createBaseView(name: String) -> String? {
-        guard let templateURL = Bundle.module.url(forResource: "Base", withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
+extension CodeGenerator {
+    func loadTemplate(name: String) throws -> String? {
+        guard let templateURL = Bundle.module.url(forResource: name, withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
             print("Failed to load template file.")
             return nil
         }
 
-        let output = template.replacingOccurrences(of: "{{ SCREEN_NAME }}", with: name)
-        return output
+        return template
     }
 
-    static func evaluateViewController(_ viewController: XMLElement) -> String? {
+    func evaluateViewController(_ viewController: XMLElement) -> String? {
         guard let containerView = viewController.elements(forName: "view").first else {
             print("Unable to find view in viewController element. Please check that the storyboard is valid.")
             return nil
@@ -141,7 +48,7 @@ public struct StoryboardToSwiftUI {
         return evaluateSubviews(containerView)
     }
 
-    static func evaluateSubviews(_ containerView: XMLElement) -> String? {
+    func evaluateSubviews(_ containerView: XMLElement) -> String? {
         guard let templateURL = Bundle.module.url(forResource: "Body", withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
             print("Failed to load template file.")
             return nil
@@ -156,7 +63,7 @@ public struct StoryboardToSwiftUI {
         return output
     }
 
-    static func evaluateViewElement(_ node: XMLNode) -> String {
+    func evaluateViewElement(_ node: XMLNode) -> String {
         guard node.childCount != 0 else {
             // This node is a leaf node
             return node.name ?? "" + "\n"
@@ -197,49 +104,12 @@ public struct StoryboardToSwiftUI {
         }.joined(separator: "\n")
     }
 
-    // TODO: Move to README
-    // Use the template to add anything you want on all of them, then you can use this to add anything you want on a case by case basis
-    // The goal is that someone can easily come in and replace this with their own implementation
-    // So, you're thinking just give them the XMLNode and all of the data and they can use the template + their business logic to generate the ouptut string
-
-    static func loadTemplate(name: String) throws -> String? {
-        guard let templateURL = Bundle.module.url(forResource: name, withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
-            print("Failed to load template file.")
-            return nil
-        }
-
-        return template
-    }
-
-    static func createLabel(_ node: XMLElement) throws -> String {
-        guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
-
-        let text = node.attribute(forName: "text")?.stringValue ?? ""
-        var output = [String]()
-
-        // If the text is empty, then just create an empty Label component
-        if text.isEmpty {
-            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text))
-        } else {
-            // Otherwise, create a variable to represent the localized text and use that variable name instead.
-            localizedText.append(text)
-            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text.camelCase))
-        }
-
-        // This is all Turo specific now
-        if let customClass = node.attribute(forName: "customClass"), let className = customClass.stringValue, className.hasSuffix("Label") {
-            output.append(".textToken(\(className.textToken))")
-        }
-
-        return output.joined()
-    }
-
-    static func createScrollView(_ node: XMLElement) throws -> String {
+    func createScrollView(_ node: XMLElement) throws -> String {
         guard let template = try loadTemplate(name: "ScrollView") else { throw ConversionError.failedToLoadTemplate }
         return template.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
 
-    static func createImage(_ node: XMLElement) throws -> String {
+    func createImage(_ node: XMLElement) throws -> String {
         guard let template = try loadTemplate(name: "Image") else { throw ConversionError.failedToLoadTemplate }
 
         var output = [String]()
@@ -253,15 +123,15 @@ public struct StoryboardToSwiftUI {
             output.append(".frame(width: \(width), height: \(height))")
         }
 
-//        if let contentMode = node.attribute(forName: "contentMode")?.stringValue {
-//            output.append( ".aspectRatio(contentMode: .\(contentMode))")
-//        }
+        //        if let contentMode = node.attribute(forName: "contentMode")?.stringValue {
+        //            output.append( ".aspectRatio(contentMode: .\(contentMode))")
+        //        }
 
         return output.joined()
     }
 
-    static func createStackView(_ node: XMLElement) throws -> String {
-        guard let vStackTemplate = try loadTemplate(name: "VStack"), 
+    func createStackView(_ node: XMLElement) throws -> String {
+        guard let vStackTemplate = try loadTemplate(name: "VStack"),
                 let hStackTemplate = try loadTemplate(name: "HStack") else {
             throw ConversionError.failedToLoadTemplate
         }
@@ -286,7 +156,7 @@ public struct StoryboardToSwiftUI {
             .replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
 
-    static func createView(_ node: XMLElement) -> String {
+    func createView(_ node: XMLElement) -> String {
         guard let customClass = node.attribute(forName: "customClass")?.stringValue else {
             return evaluateViewElement(node)
         }
@@ -295,11 +165,11 @@ public struct StoryboardToSwiftUI {
         return "// \(customClass)"
     }
 
-    static func createSubviews(_ node: XMLElement) throws -> String {
+    func createSubviews(_ node: XMLElement) throws -> String {
         evaluateViewElement(node)
     }
 
-    static func createTableView(_ node: XMLElement) throws -> String {
+    func createTableView(_ node: XMLElement) throws -> String {
         guard let tableViewTemplate = try loadTemplate(name: "TableView") else {
             throw ConversionError.failedToLoadTemplate
         }
@@ -315,7 +185,7 @@ public struct StoryboardToSwiftUI {
         return tableViewTemplate.replacingOccurrences(of: "{{ CONTENT }}", with: cells)
     }
 
-    static func createTableViewCellContentView(_ node: XMLElement) throws -> String {
+    func createTableViewCellContentView(_ node: XMLElement) throws -> String {
         guard let cellContentView = try loadTemplate(name: "TableViewCellContentView") else {
             throw ConversionError.failedToLoadTemplate
         }
@@ -323,14 +193,14 @@ public struct StoryboardToSwiftUI {
         return cellContentView.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
 
-    static func createTextField(_ node: XMLElement) throws -> String {
+    func createTextField(_ node: XMLElement) throws -> String {
         guard let textFieldTemplate = try loadTemplate(name: "TextField") else {
             throw ConversionError.failedToLoadTemplate
         }
 
         let placeholderText = node.attribute(forName: "placeholder")?.stringValue
         if let placeholderText {
-            localizedText.append(placeholderText)
+//            localizedText.append(placeholderText) // localizedText: inout [String]) and then have default adn turo create their own arrays
         }
 
         var output = [
@@ -368,11 +238,11 @@ public struct StoryboardToSwiftUI {
         return output.joined()
     }
 
-    static func createButton(_ node: XMLElement) -> String {
+    func createButton(_ node: XMLElement) -> String {
         "Button"
     }
 
-    static func createLocalizedTextExtension(className: String) throws -> String {
+    func createLocalizedTextExtension(className: String) throws -> String {
         guard let localizedTextExtensionTemplate = try loadTemplate(name: "LocalizedTextContainer"),
               let localizedTextTemplate = try loadTemplate(name: "LocalizedText") else {
             throw ConversionError.failedToLoadTemplate
@@ -391,27 +261,63 @@ public struct StoryboardToSwiftUI {
         return localizedTextExtensionTemplate
             .replacingOccurrences(of: "{{ CONTENT }}", with: localizedStringOutput)
             .replacingOccurrences(of: "{{ CLASS_NAME }}", with: className)
-            .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: placeholder)
+//            .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: placeholder)
 
     }
 }
 
-// MARK: User Input
-extension StoryboardToSwiftUI {
-    static func promptUserForViewControllerSelction(viewControllers: [XMLElement]) -> XMLElement {
-        print("Found \(viewControllers.count) view controllers.")
-        print("Please select one:")
+class DefaultCodeGenerator: CodeGenerator {
+    var actionNames = [String]()
+    var localizedText = [String]()
 
-        for (index, viewController) in viewControllers.enumerated() {
-            print("\(index + 1): \(nameProvider.createSwiftUINameFromViewController(viewController))")
+    func createLabel(_ node: XMLElement) throws -> String {
+        guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
+
+        let text = node.attribute(forName: "text")?.stringValue ?? ""
+        var output = [String]()
+
+        // If the text is empty, then just create an empty Label component
+        if text.isEmpty {
+            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text))
+        } else {
+            // Otherwise, create a variable to represent the localized text and use that variable name instead.
+            localizedText.append(text)
+            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text.camelCase))
         }
 
-        // TODO: Prompt user for localized string key prefix
+        // This is all Turo specific now
+        if let customClass = node.attribute(forName: "customClass"), let className = customClass.stringValue, className.hasSuffix("Label") {
+            output.append(".textToken(\(className.textToken))")
+        }
 
-        let selectedViewControllerIndex = Int(readLine(strippingNewline: true) ?? "0") ?? 0
-        let viewController = viewControllers[selectedViewControllerIndex - 1]
-        return viewController
+        return output.joined()
     }
 }
 
-// TODO: Find backgroundColor
+class CustomCodeGenerator: CodeGenerator {
+    var actionNames = [String]()
+    var localizedText = [String]()
+
+    func createLabel(_ node: XMLElement) throws -> String {
+        guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
+
+        let text = node.attribute(forName: "text")?.stringValue ?? ""
+        var output = [String]()
+
+        // If the text is empty, then just create an empty Label component
+        if text.isEmpty {
+            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text))
+        } else {
+            // Otherwise, create a variable to represent the localized text and use that variable name instead.
+//            localizedText.append(text)
+            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text.camelCase))
+        }
+
+        // This is all Turo specific now
+        if let customClass = node.attribute(forName: "customClass"), let className = customClass.stringValue, className.hasSuffix("Label") {
+            output.append(".textToken(\(className.textToken))")
+        }
+
+        return output.joined()
+    }
+}
