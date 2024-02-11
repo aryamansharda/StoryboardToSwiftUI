@@ -21,7 +21,7 @@ extension String {
 
     var camelCase: String {
         let alphanumericInput = self
-            .replacingOccurrences(of: "[^a-zA-Z0-9 ]", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "[^a-zA-Z ]", with: "", options: .regularExpression)
             .components(separatedBy: " ")
             .filter { !$0.isEmpty }
             .prefix(5)
@@ -40,7 +40,7 @@ extension String {
 
     var snakeCase: String {
         let alphanumericInput = self
-            .replacingOccurrences(of: "[^a-zA-Z0-9 ]", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "[^a-zA-Z ]", with: "", options: .regularExpression)
             .components(separatedBy: " ")
             .filter { !$0.isEmpty }
             .prefix(5)

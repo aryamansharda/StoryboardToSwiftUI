@@ -1,3 +1,0 @@
-{{ AXIS }}Stack(spacing: .space{{ SPACE_AMOUNT }}) {
-    {{ CONTENT }}
-}

@@ -1,2 +1,2 @@
-Image({{ CONTENT }})
+TuroAsset.{{ CONTENT }}.image
     .resizable()

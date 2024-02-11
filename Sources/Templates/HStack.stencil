@@ -1,0 +1,3 @@
+HStack(spacing: .space{{ SPACE_AMOUNT }}) {
+    {{ CONTENT }}
+}

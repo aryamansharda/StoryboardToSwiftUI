@@ -1,3 +1,7 @@
+import SwiftUI
+import Pedal
+import TuroAsset
+
 public struct {{ SCREEN_NAME }}: View {
     public init() {}
 

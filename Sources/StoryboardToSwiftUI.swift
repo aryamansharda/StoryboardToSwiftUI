@@ -17,6 +17,8 @@ public struct StoryboardToSwiftUI {
         case subviews
         case textField
         case button
+        case tableView
+        case tableViewCellContentView
     }
 
     enum ConversionError: Error {
@@ -24,14 +26,22 @@ public struct StoryboardToSwiftUI {
     }
 
     static let nameProvider: ViewControllerNameProvider = TuroViewControllerNameProvider()
-    static let placeholder = "<" + "#T##String#" + ">"
+    static let placeholder = "\"comments needed\"" //<" + "#T##String#" + ">"
 
     static var actionNames = [String]()
     static var localizedText = [String]()
 
     public static func main() {
+        print("Please provide the absolute path to the .storyboard file:")
+        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/Extras.storyboard"
+//        var filePath = readLine(strippingNewline: true)
+//        if let path = filePath, path.isEmpty {
+//
+//        }
+
+        print(filePath)
         // Loads the Storyboard / View and returns the top-levl XML node
-        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/BoostPricingInfoViewController.storyboard"
+//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/BoostPricingInfoViewController.storyboard"
         guard let rootNode = readXMLFile(filePath: filePath) else {
             print("Unable to load valid XML data.")
             return
@@ -60,8 +70,9 @@ public struct StoryboardToSwiftUI {
                 (try? createLocalizedTextExtension(className: screenName)) ?? ""
             ].joined()
 
-            print(hydratedSwiftUIScreen)
+//            print(hydratedSwiftUIScreen)
 
+            try! SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen)
         case .views(let views):
             // TODO:
             for view in views {
@@ -172,9 +183,13 @@ public struct StoryboardToSwiftUI {
                 case .subviews:
                     return try createSubviews(element)
                 case .textField:
-                    return createTextField(element)
+                    return try createTextField(element)
                 case .button:
                     return createButton(element)
+                case .tableView:
+                    return try createTableView(element)
+                case .tableViewCellContentView:
+                    return try createTableViewCellContentView(element)
                 }
             } catch {
                 print(error)
@@ -231,25 +246,35 @@ public struct StoryboardToSwiftUI {
         var output = [String]()
 
         let imageName = node.attribute(forName: "image")?.stringValue ?? ""
-        output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: imageName))
+        output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: imageName.camelCase))
 
-        if let contentMode = node.attribute(forName: "contentMode")?.stringValue {
-            output.append( ".aspectRatio(contentMode: .\(contentMode))")
+        if let frame = node.children?.first(where: { $0.name == "rect" }) as? XMLElement,
+           let width = frame.attribute(forName: "width")?.stringValue,
+           let height = frame.attribute(forName: "height")?.stringValue {
+            output.append(".frame(width: \(width), height: \(height))")
         }
+
+//        if let contentMode = node.attribute(forName: "contentMode")?.stringValue {
+//            output.append( ".aspectRatio(contentMode: .\(contentMode))")
+//        }
 
         return output.joined()
     }
 
     static func createStackView(_ node: XMLElement) throws -> String {
-        guard let template = try loadTemplate(name: "Stack") else { throw ConversionError.failedToLoadTemplate }
+        guard let vStackTemplate = try loadTemplate(name: "VStack"), 
+                let hStackTemplate = try loadTemplate(name: "HStack") else {
+            throw ConversionError.failedToLoadTemplate
+        }
 
-        // V/H Stack orientation
-        var direction = "V"
+        var template: String = hStackTemplate
+
+        // Defaults to HStack if unspecified
         if let axisElement = node.attribute(forName: "axis"), let axisValue = axisElement.stringValue {
             if axisValue == "vertical" {
-                direction = "V"
+                template = vStackTemplate
             } else if axisValue == "horizontal" {
-                direction = "H"
+                template = hStackTemplate
             }
         }
 
@@ -258,7 +283,6 @@ public struct StoryboardToSwiftUI {
         let spacing = String(node.attribute(forName: "spacing")?.stringValue?.nearestPowerOf2 ?? defaultSpacing)
 
         return template
-            .replacingOccurrences(of: "{{ AXIS }}", with: direction)
             .replacingOccurrences(of: "{{ SPACE_AMOUNT }}", with: spacing)
             .replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
@@ -276,12 +300,77 @@ public struct StoryboardToSwiftUI {
         evaluateViewElement(node)
     }
 
-    static func createTextField(_ node: XMLElement) -> String {
-        ""
+    static func createTableView(_ node: XMLElement) throws -> String {
+        guard let tableViewTemplate = try loadTemplate(name: "TableView") else {
+            throw ConversionError.failedToLoadTemplate
+        }
+
+        let prototypes = node.children?.first(where: { $0.name == "prototypes" })
+        guard let tableViewCells = prototypes?.children?.filter({ $0.name == "tableViewCell" }) else { return "" }
+
+        let cells = tableViewCells.compactMap { cell in
+            return evaluateViewElement(cell)
+        }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
+
+
+        return tableViewTemplate.replacingOccurrences(of: "{{ CONTENT }}", with: cells)
+    }
+
+    static func createTableViewCellContentView(_ node: XMLElement) throws -> String {
+        guard let cellContentView = try loadTemplate(name: "TableViewCellContentView") else {
+            throw ConversionError.failedToLoadTemplate
+        }
+
+        return cellContentView.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
+    }
+
+    static func createTextField(_ node: XMLElement) throws -> String {
+        guard let textFieldTemplate = try loadTemplate(name: "TextField") else {
+            throw ConversionError.failedToLoadTemplate
+        }
+
+        let placeholderText = node.attribute(forName: "placeholder")?.stringValue
+        if let placeholderText {
+            localizedText.append(placeholderText)
+        }
+
+        var output = [
+            textFieldTemplate
+                .replacingOccurrences(of: "{{ BINDING }}", with: placeholderText?.camelCase ?? "textInput")
+                .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: placeholderText ?? "")
+        ]
+
+        if let textColorElement = node.attribute(forName: "textColor"), let textColor = textColorElement.stringValue {
+            output.append(".foregroundColor(Color(\(textColor)))")
+        }
+
+        // Process textInputTraits
+        if let textInputTraitsAttributes = node.children?.first(where: { $0.name == "textInputTraits"}) as? XMLElement {
+            // Adds `autocapitalizationType` if the styling is something other than sentences
+            if let autocapitalizationTypeNode = textInputTraitsAttributes.attribute(forName: "autocapitalizationType"),
+               let autocapitalizationType = autocapitalizationTypeNode.stringValue,
+               autocapitalizationType != "sentences" {
+                output.append(".textInputAutocapitalization(.\(autocapitalizationType))")
+            }
+
+            // Adds `autocorrectionType` if the settings is something other than `default`
+            if let autocorrectionTypeNode = textInputTraitsAttributes.attribute(forName: "autocorrectionType"),
+               let autocorrectionType = autocorrectionTypeNode.stringValue,
+               autocorrectionType != "default" {
+
+                if autocorrectionType == "yes" {
+                    output.append(".disableAutocorrection(false)")
+                } else if autocorrectionType == "no" {
+                    output.append(".disableAutocorrection(true)")
+                }
+            }
+        }
+
+        return output.joined()
     }
 
     static func createButton(_ node: XMLElement) -> String {
-        ""
+        "Button"
     }
 
     static func createLocalizedTextExtension(className: String) throws -> String {
@@ -315,8 +404,10 @@ extension StoryboardToSwiftUI {
         print("Please select one:")
 
         for (index, viewController) in viewControllers.enumerated() {
-            print("\(index + 1): \(nameProvider.createSwiftUINameFromViewController(viewController))\n")
+            print("\(index + 1): \(nameProvider.createSwiftUINameFromViewController(viewController))")
         }
+
+        // TODO: Prompt user for localized string key prefix
 
         let selectedViewControllerIndex = Int(readLine(strippingNewline: true) ?? "0") ?? 0
         let viewController = viewControllers[selectedViewControllerIndex - 1]

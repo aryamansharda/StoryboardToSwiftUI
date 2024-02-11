@@ -5,24 +5,34 @@
 //  Created by Aryaman Sharda on 2/4/24.
 //
 
-import Foundation
+import SwiftFormat
+import SwiftSyntax
 
-class SwiftFormat {
-    static func run() {
-        let process = Process()
-        process.launchPath = "/usr/local/bin/swiftformat" // Adjust the path based on your installation
-        process.arguments = ["."] // Specify the path to your project or the directory you want to format
+class SwiftFormatService {
+    func formatSwiftCode(_ code: String) throws -> String {
+        let input = tokenize(code)
+        let output: [Token]
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+//        do {
+//
+//        } catch {
+//            throw
+//        }
 
-        process.launch()
-        process.waitUntilExit()
+        output = try! format(input)
+        print(sourceCode(for: output))
+        // Parse the input code
+//        let sourceFile = try SyntaxParser.parse(source: code)
+//
+//        // Create a SwiftFormat configuration
+//        let configuration = Configuration()
+//
+//        // Create a SwiftFormat formatter
+//        let formatter = SwiftFormatter(configuration: configuration)
+//
+//        // Format the parsed syntax tree
+//        let formattedSource = try formatter.format(sourceFile: sourceFile).description
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let output = String(data: data, encoding: .utf8) {
-            print(output)
-        }
+        return code
     }
 }
