@@ -23,7 +23,7 @@ class DefaultCodeGenerator {
             // Gets the class name from the ViewController
             let screenName = TuroViewControllerNameProvider().createNameFromViewController(viewController!)
             let screenTemplate = try! createBaseView(name: screenName)
-            guard let content = evaluateViewController(viewController!) else {
+            guard let content = try! evaluateViewController(viewController!) else {
                 return
             }
 
@@ -39,7 +39,7 @@ class DefaultCodeGenerator {
             let screenTemplate = try! createBaseView(name: screenName)
 
             let knownSubview = filterOnlyKnownComponents(element: view!).first!
-            let content = evaluateSubviews(knownSubview as! XMLElement)
+            let content = try! evaluateSubviews(knownSubview as! XMLElement)
 
             let hydratedSwiftUIScreen = [
                 screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content!),
@@ -60,21 +60,21 @@ class DefaultCodeGenerator {
         }
         
         // Checks whether the storyboard contains a list of views
-        if let objects = root.elements(forName: "objects").first {
-            let containerView = filterOnlyKnownComponents(element: objects).first!
-            return .views([containerView as! XMLElement])
+        if let objects = root.elements(forName: "objects").first,
+            let containerView = filterOnlyKnownComponents(element: objects).first as? XMLElement {
+            return .views([containerView])
         }
         
         return nil
     }
 
-    private func filterOnlyKnownComponents(element: XMLElement) -> [XMLNode] {
-        return element.children?.filter { element in
-            guard let elementName = element.name, let _ = SupportedElements(rawValue: elementName) else {
-                return false
+    func filterOnlyKnownComponents(element: XMLElement) -> [XMLNode] {
+        element.children?.compactMap { child in
+            guard let elementName = child.name, SupportedElements(rawValue: elementName) != nil else {
+                return nil
             }
-
-            return true
+            
+            return child
         } ?? []
     }
 
@@ -96,25 +96,21 @@ class DefaultCodeGenerator {
         return selectedItem
     }
 
-    func evaluateViewController(_ viewController: XMLElement) -> String? {
+    func evaluateViewController(_ viewController: XMLElement) throws -> String? {
         guard let containerView = viewController.elements(forName: "view").first else {
             print("Unable to find view in viewController element. Please check that the storyboard is valid.")
             return nil
         }
         
-        return evaluateSubviews(containerView)
+        return try evaluateSubviews(containerView)
     }
     
-    func evaluateSubviews(_ containerView: XMLElement) -> String? {
-        guard let templateURL = Bundle.module.url(forResource: "Body", withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
-            print("Failed to load template file.")
-            return nil
-        }
-        
+    func evaluateSubviews(_ containerView: XMLElement) throws -> String? {
+        guard let template = try loadTemplate(name: "Body") else { throw ConversionError.failedToLoadTemplate }
+
         let subviews = containerView.elements(forName: "subviews")
         let output = subviews.reduce("") { result, subview in
-            let content = evaluateViewElement(subview)
-            return result + template.replacingOccurrences(of: "{{ CONTENT }}", with: content)
+            return result + template.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(subview))
         }
         
         return output
@@ -142,7 +138,7 @@ class DefaultCodeGenerator {
                 case .view:
                     return createView(element)
                 case .subviews:
-                    return try createSubviews(element)
+                    return evaluateViewElement(element)
                 case .textField:
                     return try createTextField(element)
                 case .button:
@@ -172,10 +168,8 @@ class DefaultCodeGenerator {
     
     // MARK: Hydration
     func createBaseView(name: String) throws -> String {
-        guard let template = try loadTemplate(name: "Base") else {
-            throw ConversionError.failedToLoadTemplate
-        }
-        
+        guard let template = try loadTemplate(name: "Base") else { throw ConversionError.failedToLoadTemplate }
+
         let contentView = template.replacingOccurrences(of: "{{ SCREEN_NAME }}", with: name)
         return contentView
     }
@@ -184,18 +178,16 @@ class DefaultCodeGenerator {
         guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
 
         let text = node.attribute(forName: "text")?.stringValue ?? ""
-        var output = [String]()
+        var output: String
 
-        // If the text is empty, then just create an empty Label component
         if text.isEmpty {
-            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text))
+            output = template.replacingOccurrences(of: "{{ CONTENT }}", with: text)
         } else {
-            // Otherwise, create a variable to represent the localized text and use that variable name instead.
             localizedText.append(text)
-            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text.camelCase))
+            output = template.replacingOccurrences(of: "{{ CONTENT }}", with: text.camelCase)
         }
 
-        return output.joined()
+        return output
     }
 
     func createScrollView(_ node: XMLElement) throws -> String {
@@ -224,18 +216,10 @@ class DefaultCodeGenerator {
         guard let vStackTemplate = try loadTemplate(name: "VStack"), let hStackTemplate = try loadTemplate(name: "HStack") else {
             throw ConversionError.failedToLoadTemplate
         }
-        
-        var template: String = hStackTemplate
-        
-        // Defaults to HStack if unspecified
-        if let axisElement = node.attribute(forName: "axis"), let axisValue = axisElement.stringValue {
-            if axisValue == "vertical" {
-                template = vStackTemplate
-            } else if axisValue == "horizontal" {
-                template = hStackTemplate
-            }
-        }
-        
+
+        // TODO: This is only true for Turo
+        let template = (node.attribute(forName: "axis")?.stringValue == "vertical") ? vStackTemplate : hStackTemplate
+
         // Set to default spacing since we don't want any StackView to be without a space specified
         let defaultSpacing: Int = 8
         let spacing = String(node.attribute(forName: "spacing")?.stringValue?.nearestPowerOf2 ?? defaultSpacing)
@@ -252,10 +236,6 @@ class DefaultCodeGenerator {
         
         print("An unknown type was detected. To add support, please add support for \(customClass) to the known types.")
         return "// \(customClass)"
-    }
-    
-    func createSubviews(_ node: XMLElement) throws -> String {
-        evaluateViewElement(node)
     }
     
     func createTableView(_ node: XMLElement) throws -> String {
