@@ -1,5 +1,6 @@
 import Foundation
 
+@available(macOS 13.0, *)
 @main
 public struct StoryboardToSwiftUI {
     static let nameProvider: ViewControllerNameProvider = TuroViewControllerNameProvider()
@@ -10,7 +11,8 @@ public struct StoryboardToSwiftUI {
         
 //        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/Extras.storyboard"
 //        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Views/Listing/Quality Acknowledgement/Base.lproj/ListingQualityAcknowledgement.storyboard"
-        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Subclasses/Base.lproj/CheckoutPolicyCell.xib"
+//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Subclasses/Base.lproj/CheckoutPolicyCell.xib"
+        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/ExtrasEditSectionHeader.xib"
         print(filePath)
 
         // Loads the Storyboard / View and returns the top-levl XML node
@@ -24,11 +26,15 @@ public struct StoryboardToSwiftUI {
 
     // MARK: File I/O
     static func loadStoryboardFile(filePath: String) -> XMLElement? {
-        let url = URL(fileURLWithPath: filePath)
-        guard let xmlDoc = try? XMLDocument(contentsOf: url, options: []), let root = xmlDoc.rootElement() else {
+        let url = URL(filePath: filePath)
+        do {
+            let xmlDoc = try XMLDocument(contentsOf: url, options: [])
+            print(xmlDoc)
+            let root = xmlDoc.rootElement()
+            return root
+        } catch {
+            print(error)
             return nil
         }
-
-        return root
     }
 }

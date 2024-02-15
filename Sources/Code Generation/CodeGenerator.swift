@@ -70,10 +70,20 @@ class DefaultCodeGenerator {
 
     func filterOnlyKnownComponents(element: XMLElement) -> [XMLNode] {
         element.children?.compactMap { child in
-            guard let elementName = child.name, SupportedElements(rawValue: elementName) != nil else {
+            guard let elementName = child.name, let supportedElement = SupportedElements(rawValue: elementName) else {
                 return nil
             }
             
+            return child
+        } ?? []
+    }
+
+    func findOnlySubviews(element: XMLElement) -> [XMLNode] {
+        element.children?.compactMap { child in
+            guard let elementName = child.name, let supportedElement = SupportedElements(rawValue: elementName), supportedElement == .subviews else {
+                return nil
+            }
+
             return child
         } ?? []
     }
@@ -109,6 +119,10 @@ class DefaultCodeGenerator {
         guard let template = try loadTemplate(name: "Body") else { throw ConversionError.failedToLoadTemplate }
 
         let subviews = containerView.elements(forName: "subviews")
+        if subviews.isEmpty {
+            return template.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(containerView))
+        }
+
         let output = subviews.reduce("") { result, subview in
             return result + template.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(subview))
         }
@@ -200,8 +214,8 @@ class DefaultCodeGenerator {
         
         var output = [String]()
         
-        let imageName = node.attribute(forName: "image")?.stringValue ?? ""
-        output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: imageName.camelCase))
+        let imageName = node.attribute(forName: "image")?.stringValue?.camelCase ?? ""
+        output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: imageName))
         
         if let frame = node.children?.first(where: { $0.name == "rect" }) as? XMLElement,
            let width = frame.attribute(forName: "width")?.stringValue,
@@ -244,21 +258,16 @@ class DefaultCodeGenerator {
         }
 
         guard let prototypes = node.children?.first(where: { $0.name == "prototypes" }),
-              let tableViewCells = prototypes.children?.filter({ $0.name == "tableViewCell" }) else { return "" }
+              let tableViewCells = prototypes.children?.filter({ $0.name == "tableViewCell" }) else {
+            return ""
+        }
 
-        let cells = tableViewCells.compactMap { cell in
-            evaluateViewElement(cell)
-        }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
-        
-        
+        let cells = tableViewCells.compactMap { evaluateViewElement($0) }.joined(separator: "\n")
         return tableViewTemplate.replacingOccurrences(of: "{{ CONTENT }}", with: cells)
     }
-    
+
     func createTableViewCellContentView(_ node: XMLElement) throws -> String {
-        guard let cellContentView = try loadTemplate(name: "TableViewCellContentView") else {
-            throw ConversionError.failedToLoadTemplate
-        }
-        
+        guard let cellContentView = try loadTemplate(name: "TableViewCellContentView") else { throw ConversionError.failedToLoadTemplate }
         return cellContentView.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
     
@@ -269,7 +278,7 @@ class DefaultCodeGenerator {
         
         let placeholderText = node.attribute(forName: "placeholder")?.stringValue
         if let placeholderText {
-            //            localizedText.append(placeholderText) // localizedText: inout [String]) and then have default adn turo create their own arrays
+            localizedText.append(placeholderText)
         }
         
         var output = [
@@ -316,22 +325,23 @@ class DefaultCodeGenerator {
               let localizedTextTemplate = try loadTemplate(name: "LocalizedText") else {
             throw ConversionError.failedToLoadTemplate
         }
-        
-        guard !localizedText.isEmpty else { return "" }
-        
+
+        guard !localizedText.isEmpty else {
+            return ""
+        }
+
         let localizedStringOutput = localizedText.map { localizedItem in
-            let result = localizedTextTemplate
+            localizedTextTemplate
                 .replacingOccurrences(of: "{{ VARIABLE_NAME }}", with: localizedItem.camelCase)
                 .replacingOccurrences(of: "{{ KEY }}", with: localizedItem.snakeCase)
                 .replacingOccurrences(of: "{{ VALUE }}", with: localizedItem)
-            return result
-        }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
-        
+        }.joined(separator: "\n")
+
+        // Can't combine this String here otherwise Xcode will treat is as a placeholder
         let defaultPlaceholder = "<" + "#T##String#" + ">"
         return localizedTextExtensionTemplate
             .replacingOccurrences(of: "{{ CONTENT }}", with: localizedStringOutput)
             .replacingOccurrences(of: "{{ CLASS_NAME }}", with: className)
             .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: defaultPlaceholder)
-
     }
 }
