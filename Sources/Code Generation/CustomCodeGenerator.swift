@@ -7,11 +7,9 @@
 
 import Foundation
 
-class CustomCodeGenerator: CodeGenerator {
-    var actionNames = [String]()
-    var localizedText = [String]()
-
-    func createLabel(_ node: XMLElement) throws -> String {
+final class CustomCodeGenerator: DefaultCodeGenerator {
+    override func createLabel(_ node: XMLElement) throws -> String {
+        // TOODO: Call super version instead
         guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
 
         let text = node.attribute(forName: "text")?.stringValue ?? ""

@@ -1,35 +1,16 @@
 import Foundation
 
-enum SupportedElements: String {
-    case label
-    case scrollView
-    case imageView
-    case stackView
-    case view
-    case subviews
-    case textField
-    case button
-    case tableView
-    case tableViewCellContentView
-}
-
-enum StoryboardContentType {
-    case viewControllers([XMLElement])
-    case views([XMLElement])
-}
-
 @main
 public struct StoryboardToSwiftUI {
-
     static let nameProvider: ViewControllerNameProvider = TuroViewControllerNameProvider()
-    static let placeholder = "\"comments needed\"" //<" + "#T##String#" + ">"
-
     static let codeGenerator = CustomCodeGenerator()
 
     public static func main() {
         print("Please provide the absolute path to the .storyboard file:")
         
-        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/Extras.storyboard"
+//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/Extras.storyboard"
+//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Views/Listing/Quality Acknowledgement/Base.lproj/ListingQualityAcknowledgement.storyboard"
+        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Subclasses/Base.lproj/CheckoutPolicyCell.xib"
         print(filePath)
 
         // Loads the Storyboard / View and returns the top-levl XML node

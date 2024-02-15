@@ -7,35 +7,9 @@
 
 import Foundation
 
-protocol CodeGenerator {
-    // This may not be needed if the IBAction is visible in the XML for the button
-    var actionNames: [String] { get set }
-    var localizedText: [String]  { get set }
+class DefaultCodeGenerator {
+    var localizedText = [String]()
 
-    func loadTemplate(name: String) throws -> String?
-
-    func generate(root: XMLElement)
-    func determineStoryboardContentType(root: XMLElement) -> StoryboardContentType?
-    func promptUserForViewControllerSelction(viewControllers: [XMLElement]) -> XMLElement
-
-    func evaluateViewController(_ viewController: XMLElement) -> String?
-    func evaluateSubviews(_ containerView: XMLElement) -> String?
-    func evaluateViewElement(_ node: XMLNode) -> String
-
-    func createBaseView(name: String) throws -> String
-    func createLabel(_ node: XMLElement) throws -> String
-    func createScrollView(_ node: XMLElement) throws -> String
-    func createImage(_ node: XMLElement) throws -> String
-    func createView(_ node: XMLElement) -> String
-    func createSubviews(_ node: XMLElement) throws -> String
-    func createTableView(_ node: XMLElement) throws -> String
-    func createTableViewCellContentView(_ node: XMLElement) throws -> String
-    func createTextField(_ node: XMLElement) throws -> String
-    func createButton(_ node: XMLElement) -> String
-    func createLocalizedTextExtension(className: String) throws -> String
-}
-
-extension CodeGenerator {
     func generate(root: XMLElement) {
         guard let contentType = determineStoryboardContentType(root: root) else {
             print("Unable to determine .storyboard file contents.")
@@ -44,16 +18,15 @@ extension CodeGenerator {
         
         switch contentType {
         case .viewControllers(let viewControllers):
-            let viewController = promptUserForViewControllerSelction(viewControllers: viewControllers)
-            
+            let viewController = promptUserForSelection(items: viewControllers)
+
             // Gets the class name from the ViewController
-            let screenName = TuroViewControllerNameProvider().createSwiftUINameFromViewController(viewController)
+            let screenName = TuroViewControllerNameProvider().createNameFromViewController(viewController!)
             let screenTemplate = try! createBaseView(name: screenName)
-            guard let content = evaluateViewController(viewController) else {
+            guard let content = evaluateViewController(viewController!) else {
                 return
             }
-            
-            
+
             let hydratedSwiftUIScreen = [
                 screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
                 (try? createLocalizedTextExtension(className: screenName)) ?? ""
@@ -61,10 +34,19 @@ extension CodeGenerator {
             
             print(try! SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen))
         case .views(let views):
-            // TODO:
-            for view in views {
-                
-            }
+            let view = promptUserForSelection(items: views)
+            let screenName = TuroViewControllerNameProvider().createNameFromView(view!)
+            let screenTemplate = try! createBaseView(name: screenName)
+
+            let knownSubview = filterOnlyKnownComponents(element: view!).first!
+            let content = evaluateSubviews(knownSubview as! XMLElement)
+
+            let hydratedSwiftUIScreen = [
+                screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content!),
+                (try? createLocalizedTextExtension(className: screenName)) ?? ""
+            ].joined()
+
+            print(try! SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen))
         }
     }
     
@@ -79,28 +61,41 @@ extension CodeGenerator {
         
         // Checks whether the storyboard contains a list of views
         if let objects = root.elements(forName: "objects").first {
-            let views = objects.elements(forName: "view")
-            return .views(views)
+            let containerView = filterOnlyKnownComponents(element: objects).first!
+            return .views([containerView as! XMLElement])
         }
         
         return nil
     }
-    
-    func promptUserForViewControllerSelction(viewControllers: [XMLElement]) -> XMLElement {
-        print("Found \(viewControllers.count) view controllers.")
-        print("Please select one:")
-        
-        for (index, viewController) in viewControllers.enumerated() {
-            print("\(index + 1): \(TuroViewControllerNameProvider().createSwiftUINameFromViewController(viewController))")
-        }
-        
-        // TODO: Prompt user for localized string key prefix
-        
-        let selectedViewControllerIndex = Int(readLine(strippingNewline: true) ?? "0") ?? 0
-        let viewController = viewControllers[selectedViewControllerIndex - 1]
-        return viewController
+
+    private func filterOnlyKnownComponents(element: XMLElement) -> [XMLNode] {
+        return element.children?.filter { element in
+            guard let elementName = element.name, let _ = SupportedElements(rawValue: elementName) else {
+                return false
+            }
+
+            return true
+        } ?? []
     }
-    
+
+    func promptUserForSelection<T>(items: [T]) -> T? {
+        print("Found \(items.count) items.")
+        print("Please select one:")
+
+        for (index, item) in items.enumerated() {
+            print("\(index + 1): \(item)")
+        }
+
+        let selectedIndex = Int(readLine(strippingNewline: true) ?? "0") ?? 0
+        guard selectedIndex > 0 && selectedIndex <= items.count else {
+            print("Invalid selection. Please try again.")
+            return nil
+        }
+
+        let selectedItem = items[selectedIndex - 1]
+        return selectedItem
+    }
+
     func evaluateViewController(_ viewController: XMLElement) -> String? {
         guard let containerView = viewController.elements(forName: "view").first else {
             print("Unable to find view in viewController element. Please check that the storyboard is valid.")
@@ -154,6 +149,8 @@ extension CodeGenerator {
                     return createButton(element)
                 case .tableView:
                     return try createTableView(element)
+                case .tableViewCell:
+                    return evaluateViewElement(element)
                 case .tableViewCellContentView:
                     return try createTableViewCellContentView(element)
                 }
@@ -183,6 +180,24 @@ extension CodeGenerator {
         return contentView
     }
     
+    func createLabel(_ node: XMLElement) throws -> String {
+        guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
+
+        let text = node.attribute(forName: "text")?.stringValue ?? ""
+        var output = [String]()
+
+        // If the text is empty, then just create an empty Label component
+        if text.isEmpty {
+            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text))
+        } else {
+            // Otherwise, create a variable to represent the localized text and use that variable name instead.
+            localizedText.append(text)
+            output.append(template.replacingOccurrences(of: "{{ CONTENT }}", with: text.camelCase))
+        }
+
+        return output.joined()
+    }
+
     func createScrollView(_ node: XMLElement) throws -> String {
         guard let template = try loadTemplate(name: "ScrollView") else { throw ConversionError.failedToLoadTemplate }
         return template.replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
@@ -247,12 +262,12 @@ extension CodeGenerator {
         guard let tableViewTemplate = try loadTemplate(name: "TableView") else {
             throw ConversionError.failedToLoadTemplate
         }
-        
-        let prototypes = node.children?.first(where: { $0.name == "prototypes" })
-        guard let tableViewCells = prototypes?.children?.filter({ $0.name == "tableViewCell" }) else { return "" }
-        
+
+        guard let prototypes = node.children?.first(where: { $0.name == "prototypes" }),
+              let tableViewCells = prototypes.children?.filter({ $0.name == "tableViewCell" }) else { return "" }
+
         let cells = tableViewCells.compactMap { cell in
-            return evaluateViewElement(cell)
+            evaluateViewElement(cell)
         }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
         
         
@@ -332,10 +347,11 @@ extension CodeGenerator {
             return result
         }.joined(separator: "\n").trimmingCharacters(in: .whitespaces)
         
+        let defaultPlaceholder = "<" + "#T##String#" + ">"
         return localizedTextExtensionTemplate
             .replacingOccurrences(of: "{{ CONTENT }}", with: localizedStringOutput)
             .replacingOccurrences(of: "{{ CLASS_NAME }}", with: className)
-        //            .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: placeholder)
-        
+            .replacingOccurrences(of: "{{ PLACEHOLDER }}", with: defaultPlaceholder)
+
     }
 }
