@@ -1,6 +1,8 @@
-# Storyboard to SwiftUI Converter
+# Storyboard to SwiftUI Converter 🚀
 
-The Storyboard to SwiftUI Converter is a command-line tool that allows you to convert iOS Storyboard files to SwiftUI code. It provides a convenient way to migrate your existing Storyboard-based projects to SwiftUI, enabling you to leverage the power and flexibility of SwiftUI for UI development.
+The Storyboard to SwiftUI Converter is a command-line tool that allows you to convert .storyboard / .xib files to SwiftUI code. It provides a convenient way to migrate your existing storyboard-based projects to SwiftUI enabling you to leverage the power and flexibility of SwiftUI for UI development.
+
+As someone working on a legacy codebase, I know how paniful storyboards are especially in comparison to SwiftUI. To help speed up the transition to SwiftUI on my team, I started messing around with buidling this conversion tool. While it's not perfect, it significantly reduces the effort required to perform these conversions and offers easy customization to match your preferred conventions.
 
 ## Features
 
