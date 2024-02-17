@@ -19,11 +19,11 @@ The Storyboard to SwiftUI Converter is a command-line tool that allows you to co
 ### Installation Steps
 
 1. Clone the repository to your local machine:
-`git clone https://github.com/your/repository.git`
+`git clone https://github.com/aryamansharda/StoryboardToSwiftUI.git`
 
 
 2. Navigate to the project directory:
-`cd storyboard-to-swiftui-converter`
+`cd StoryboardToSwiftUI`
 
 
 3. Build the project using Swift Package Manager:
