@@ -43,12 +43,11 @@ and pass in the path to the .storyboard file when prompted.
 
 ## Usage
 
-To convert a Storyboard file to SwiftUI code, run the following command:
+To convert a Storyboard file to SwiftUI code, run the following command after building:
 
-`storyboard-to-swiftui-converter /path/to/YourStoryboard.storyboard`
+`./StoryboardToSwiftUI`
 
-
-Replace `/path/to/YourStoryboard.storyboard` with the path to your Storyboard file.
+The tool will then prompt you to provide a path to a .xib or .storyboard file.
 
 ## Customization
 
