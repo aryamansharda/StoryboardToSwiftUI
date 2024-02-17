@@ -35,8 +35,11 @@ The Storyboard to SwiftUI Converter is a command-line tool that allows you to co
 
 
 5. Optionally, move the executable to a directory in your PATH for easier access:
-`cp storyboard-to-swiftui-converter /usr/local/bin`
+`cp StoryboardToSwiftUI /usr/local/bin`
 
+6. Otherwise, you can just run:
+`./StoryboardToSwiftUI` 
+and pass in the path to the .storyboard file when prompted.
 
 ## Usage
 
@@ -61,6 +64,55 @@ Please note that while this tool aims to provide a smooth transition from Storyb
 
 Here's an example of the output:
 
+```
+import DesignSystem
+import SwiftUI
+
+public struct EarningsScreen: View {
+    public init() {}
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: .space16) {
+                Text(youllReceiveOfTheTrip)
+                    .textToken(.body)
+                VStack(alignment: .leading, spacing: .space16) {
+                    Text(example)
+                        .textToken(.headerXS)
+                    Text(yourAverageDailyPriceFor)
+                        .textToken(.body)
+                }
+            }
+        }
+    }
+}
+
+extension EarningsScreen {
+    var youllReceiveOfTheTrip: String {
+        NSLocalizedString(
+            "youll_receive_of_the_trip",
+            value: "You’ll receive 75% of the trip price after your weekly/monthly discount, if applicable.",
+            comment: <#T##String#>
+        )
+    }
+
+    var example: String {
+        NSLocalizedString(
+            "example",
+            value: "Example",
+            comment: <#T##String#>
+        )
+    }
+
+    var yourAverageDailyPriceFor: String {
+        NSLocalizedString(
+            "your_average_daily_price_for",
+            value: "Your average daily price for the next seven days is $63.",
+            comment: <#T##String#>
+        )
+    }
+}
+```
 
 ## Contact
 
