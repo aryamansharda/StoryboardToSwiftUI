@@ -88,7 +88,7 @@ public struct EarningsScreen: View {
 }
 
 // Note: the script will actually create an Xcode String placeholder object for the comment, but that renders poorly on GitHub
-// This is the only edit made to this file.
+// This is the only edit made to this output.
 extension EarningsScreen {
     var youllReceiveOfTheTrip: String {
         NSLocalizedString(
