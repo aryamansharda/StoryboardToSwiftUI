@@ -87,12 +87,14 @@ public struct EarningsScreen: View {
     }
 }
 
+// Note: the script will actually create an Xcode String placeholder object for the comment, but that renders poorly on GitHub
+// This is the only edit made to this file.
 extension EarningsScreen {
     var youllReceiveOfTheTrip: String {
         NSLocalizedString(
             "youll_receive_of_the_trip",
             value: "You’ll receive 75% of the trip price after your weekly/monthly discount, if applicable.",
-            comment: <#T##String#>
+            comment: "TODO"
         )
     }
 
@@ -100,7 +102,7 @@ extension EarningsScreen {
         NSLocalizedString(
             "example",
             value: "Example",
-            comment: <#T##String#>
+            comment: "TODO"
         )
     }
 
@@ -108,7 +110,7 @@ extension EarningsScreen {
         NSLocalizedString(
             "your_average_daily_price_for",
             value: "Your average daily price for the next seven days is $63.",
-            comment: <#T##String#>
+            comment: "TODO"
         )
     }
 }
