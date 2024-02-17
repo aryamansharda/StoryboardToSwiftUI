@@ -1,0 +1,5 @@
+Button(action: {
+    {{ ACTION  }}
+}) {
+    Text({{ TEXT }})
+}

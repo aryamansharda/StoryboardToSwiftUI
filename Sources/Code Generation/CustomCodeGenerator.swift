@@ -8,6 +8,7 @@
 import Foundation
 
 final class CustomCodeGenerator: DefaultCodeGenerator {
+    private let designSystemButtons = ["PrimaryButtonView", "OutlineButtonView", "GhostButtonView", "DestructivePrimaryButtonView", "DestructiveGhostButtonView"]
 
     override func createNameFromViewController(_ viewControllerNode: XMLElement) -> String {
         let viewControllerName = super.createNameFromViewController(viewControllerNode)
@@ -23,14 +24,20 @@ final class CustomCodeGenerator: DefaultCodeGenerator {
         return viewName.hasPrefix(targetPrefix) ? String(viewName.dropFirst(targetPrefix.count)) : viewName
     }
 
-    override func createView(_ node: XMLElement) -> String {
-        let output = super.createView(node)
-
-        if output.contains("Plain") || output.contains("Ghost") {
-            print("This is a Pedal component")
+    override func createView(_ node: XMLElement) -> String? {
+        guard let customClass = node.attribute(forName: "customClass")?.stringValue else {
+            return evaluateViewElement(node)
         }
 
-        return output
+        // Treating this as a button with support for other custom classes later
+        guard designSystemButtons.contains(customClass), let templateURL = Bundle.module.url(forResource: "TuroButton", withExtension: "stencil"), let template = try? String(contentsOf: templateURL) else {
+            return nil
+        }
+
+        // The correct name is just the custom class with the "View" suffix dropped
+        let correctComponentName = customClass.replacingOccurrences(of: "View", with: "")
+        return template
+            .replacingOccurrences(of: "{{ BUTTON_STYLE }}", with: correctComponentName)
     }
 
     override func createLabel(_ node: XMLElement) throws -> String {

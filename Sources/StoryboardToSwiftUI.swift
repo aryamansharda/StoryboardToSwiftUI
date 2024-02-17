@@ -8,12 +8,12 @@ public struct StoryboardToSwiftUI {
 
     public static func main() {
         print("Please provide the absolute path to the .storyboard file:")
-        
-//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/Extras.storyboard"
-//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Views/Listing/Quality Acknowledgement/Base.lproj/ListingQualityAcknowledgement.storyboard"
-//        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/Classes/Subclasses/Base.lproj/CheckoutPolicyCell.xib"
-        let filePath = "/Users/aryamansharda/Documents/bowman/Bowman/User Interface/Base.lproj/ExtrasEditSectionHeader.xib"
-        print(filePath)
+      
+        // Read user input for file path
+        guard let filePath = readLine() else {
+            print("Invalid file path provided.")
+            return
+        }
 
         // Loads the Storyboard / View and returns the top-levl XML node
         guard let root = loadStoryboardFile(filePath: filePath) else {
@@ -22,7 +22,13 @@ public struct StoryboardToSwiftUI {
         }
 
         // Generate code based on the loaded storyboard
-        codeGenerator.generate(root: root)
+        guard let response = codeGenerator.generate(root: root) else {
+            print("Conversion failed!")
+            return
+        }
+
+        print(response)
+        copyToClipboard(text: response)
     }
 
     // MARK: File I/O
@@ -36,6 +42,30 @@ public struct StoryboardToSwiftUI {
         } catch {
             print(error)
             return nil
+        }
+    }
+
+    // MARK: Clipboard
+    static func copyToClipboard(text: String) {
+        let process = Process()
+        process.launchPath = "/usr/bin/pbcopy"
+        process.arguments = ["-pboard", "general", "-"]
+
+        let pipe = Pipe()
+        process.standardInput = pipe
+
+        if let data = text.data(using: .utf8) {
+            pipe.fileHandleForWriting.write(data)
+            pipe.fileHandleForWriting.closeFile()
+        }
+
+        process.launch()
+        process.waitUntilExit()
+
+        if process.terminationStatus == 0 {
+            print("Text copied to clipboard successfully.")
+        } else {
+            print("Failed to copy text to clipboard.")
         }
     }
 }

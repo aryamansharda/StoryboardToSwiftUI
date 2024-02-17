@@ -10,10 +10,10 @@ import Foundation
 class DefaultCodeGenerator {
     var localizedText = [String]()
 
-    func generate(root: XMLElement) {
+    func generate(root: XMLElement) -> String? {
         guard let contentType = determineStoryboardContentType(root: root) else {
             print("Unable to determine .storyboard file contents.")
-            return
+            return nil
         }
 
         switch contentType {
@@ -24,14 +24,14 @@ class DefaultCodeGenerator {
 
             guard let viewController else {
                 print("No view controller selected.")
-                return
+                return nil
             }
 
             do {
                 let screenName = createNameFromViewController(viewController)
                 let screenTemplate = try createBaseView(name: screenName)
                 guard let content = try evaluateViewController(viewController) else {
-                    return
+                    return nil
                 }
 
                 let hydratedSwiftUIScreen = [
@@ -40,7 +40,7 @@ class DefaultCodeGenerator {
                 ].joined()
 
                 let formattedCode = try SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen)
-                print(formattedCode)
+                return formattedCode
             } catch {
                 print("Error: \(error)")
             }
@@ -51,7 +51,7 @@ class DefaultCodeGenerator {
 
             guard let view else {
                 print("No view selected.")
-                return
+                return nil
             }
 
             do {
@@ -59,7 +59,7 @@ class DefaultCodeGenerator {
                 let screenTemplate = try createBaseView(name: screenName)
                 guard let knownSubview = filterOnlyKnownComponents(element: view).first as? XMLElement else {
                     print("No known subview found.")
-                    return
+                    return nil
                 }
                 let content = try evaluateSubviews(knownSubview)
 
@@ -69,11 +69,13 @@ class DefaultCodeGenerator {
                 ].joined()
 
                 let formattedCode = try SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen)
-                print(formattedCode)
+                return formattedCode
             } catch {
                 print("Error: \(error)")
             }
         }
+
+        return nil
     }
     
     func determineStoryboardContentType(root: XMLElement) -> StoryboardContentType? {
@@ -203,7 +205,7 @@ class DefaultCodeGenerator {
                 case .textField:
                     return try createTextField(element)
                 case .button:
-                    return createButton(element)
+                    return try createButton(element)
                 case .tableView:
                     return try createTableView(element)
                 case .tableViewCell:
@@ -238,7 +240,15 @@ class DefaultCodeGenerator {
     func createLabel(_ node: XMLElement) throws -> String {
         guard let template = try loadTemplate(name: "Label") else { throw ConversionError.failedToLoadTemplate }
 
-        let text = node.attribute(forName: "text")?.stringValue ?? ""
+        let text: String
+        if let textAttribute = node.attribute(forName: "text")?.stringValue {
+            text = textAttribute
+        } else if let stringKeyValue = node.elements(forName: "string").first?.stringValue {
+            text = stringKeyValue
+        } else {
+            text = ""
+        }
+
         var output: String
 
         if text.isEmpty {
@@ -290,13 +300,14 @@ class DefaultCodeGenerator {
             .replacingOccurrences(of: "{{ CONTENT }}", with: evaluateViewElement(node))
     }
     
-    func createView(_ node: XMLElement) -> String {
-        guard let customClass = node.attribute(forName: "customClass")?.stringValue else {
-            return evaluateViewElement(node)
+    func createView(_ node: XMLElement) -> String? {
+        // Check if the node has a custom class attribute
+        if let _ = node.attribute(forName: "customClass")?.stringValue {
+            return nil
         }
-        
-        print("An unknown type was detected. To add support, please add support for \(customClass) to the known types.")
-        return "// \(customClass)"
+
+        // If no custom class attribute, evaluate the view element and return the result
+        return evaluateViewElement(node)
     }
     
     func createTableView(_ node: XMLElement) throws -> String {
@@ -363,8 +374,26 @@ class DefaultCodeGenerator {
         return output.joined()
     }
     
-    func createButton(_ node: XMLElement) -> String {
-        "Button"
+    func createButton(_ node: XMLElement) throws -> String {
+        guard let buttonTemplate = try loadTemplate(name: "Button") else { throw ConversionError.failedToLoadTemplate }
+
+        let actionSelector = node.elements(forName: "connections").first?.elements(forName: "action").first?.attribute(forName: "selector")?.stringValue ?? ""
+        let buttonTitle = node.elements(forName: "state").first?.attribute(forName: "title")?.stringValue
+        if let buttonTitle {
+            localizedText.append(buttonTitle)
+        }
+
+        var output = [
+            buttonTemplate
+                .replacingOccurrences(of: "{{ TEXT }}", with: buttonTitle?.camelCase ?? " ")
+                .replacingOccurrences(of: "{{ ACTION }}", with: actionSelector)
+        ]
+
+        if let backgroundColorAttribute = node.attribute(forName: "backgroundColor"), let backgroundColor = backgroundColorAttribute.stringValue {
+            output.append(".background(Color(\(backgroundColor)))")
+        }
+
+        return output.joined()
     }
     
     func createLocalizedTextExtension(className: String) throws -> String {
