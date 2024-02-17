@@ -1,8 +1,8 @@
 //
 //  Strings+Additions.swift
-//  StoryboardToSwiftUIConverter
 //
-//  Created by Aryaman Sharda on 11/12/23.
+//
+//  Created by Aryaman Sharda on 2/10/24.
 //
 
 import Foundation
@@ -52,19 +52,5 @@ extension String {
 
         let snakeCaseString = alphanumericInput.joined(separator: "_")
         return snakeCaseString
-    }
-
-    var textToken: String {
-        // Check if the input string ends with "Label"
-        guard self.hasSuffix("Label") else {
-            return self
-        }
-
-        // Remove the "Label" suffix
-        let trimmedString = String(self.dropLast(5))
-
-        // Make the first character lowercase and add a dot at the front
-        let result = "." + trimmedString.prefix(1).lowercased() + trimmedString.dropFirst()
-        return result
-    }
+    }    
 }

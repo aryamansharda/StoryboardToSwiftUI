@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  DefaultCodeGenerator.swift
 //
 //
 //  Created by Aryaman Sharda on 2/10/24.
@@ -15,38 +15,64 @@ class DefaultCodeGenerator {
             print("Unable to determine .storyboard file contents.")
             return
         }
-        
+
         switch contentType {
         case .viewControllers(let viewControllers):
-            let viewController = promptUserForSelection(items: viewControllers)
+            let viewController = promptUserForSelection(items: viewControllers) { viewController in
+                createNameFromViewController(viewController)
+            }
 
-            // Gets the class name from the ViewController
-            let screenName = TuroViewControllerNameProvider().createNameFromViewController(viewController!)
-            let screenTemplate = try! createBaseView(name: screenName)
-            guard let content = try! evaluateViewController(viewController!) else {
+            guard let viewController else {
+                print("No view controller selected.")
                 return
             }
 
-            let hydratedSwiftUIScreen = [
-                screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
-                (try? createLocalizedTextExtension(className: screenName)) ?? ""
-            ].joined()
-            
-            print(try! SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen))
+            do {
+                let screenName = createNameFromViewController(viewController)
+                let screenTemplate = try createBaseView(name: screenName)
+                guard let content = try evaluateViewController(viewController) else {
+                    return
+                }
+
+                let hydratedSwiftUIScreen = [
+                    screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content),
+                    (try? createLocalizedTextExtension(className: screenName)) ?? ""
+                ].joined()
+
+                let formattedCode = try SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen)
+                print(formattedCode)
+            } catch {
+                print("Error: \(error)")
+            }
         case .views(let views):
-            let view = promptUserForSelection(items: views)
-            let screenName = TuroViewControllerNameProvider().createNameFromView(view!)
-            let screenTemplate = try! createBaseView(name: screenName)
+            let view = promptUserForSelection(items: views) { view in
+                return createNameFromViewController(view)
+            }
 
-            let knownSubview = filterOnlyKnownComponents(element: view!).first!
-            let content = try! evaluateSubviews(knownSubview as! XMLElement)
+            guard let view else {
+                print("No view selected.")
+                return
+            }
 
-            let hydratedSwiftUIScreen = [
-                screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content!),
-                (try? createLocalizedTextExtension(className: screenName)) ?? ""
-            ].joined()
+            do {
+                let screenName = createNameFromView(view)
+                let screenTemplate = try createBaseView(name: screenName)
+                guard let knownSubview = filterOnlyKnownComponents(element: view).first as? XMLElement else {
+                    print("No known subview found.")
+                    return
+                }
+                let content = try evaluateSubviews(knownSubview)
 
-            print(try! SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen))
+                let hydratedSwiftUIScreen = [
+                    screenTemplate.replacingOccurrences(of: "{{ BODY }}", with: content ?? ""),
+                    (try? createLocalizedTextExtension(className: screenName)) ?? ""
+                ].joined()
+
+                let formattedCode = try SwiftFormatService().formatSwiftCode(hydratedSwiftUIScreen)
+                print(formattedCode)
+            } catch {
+                print("Error: \(error)")
+            }
         }
     }
     
@@ -70,7 +96,7 @@ class DefaultCodeGenerator {
 
     func filterOnlyKnownComponents(element: XMLElement) -> [XMLNode] {
         element.children?.compactMap { child in
-            guard let elementName = child.name, let supportedElement = SupportedElements(rawValue: elementName) else {
+            guard let elementName = child.name, let _ = SupportedElements(rawValue: elementName) else {
                 return nil
             }
             
@@ -88,12 +114,12 @@ class DefaultCodeGenerator {
         } ?? []
     }
 
-    func promptUserForSelection<T>(items: [T]) -> T? {
+    func promptUserForSelection<T>(items: [T], itemNameProvider: (T) -> String) -> T? {
         print("Found \(items.count) items.")
         print("Please select one:")
 
         for (index, item) in items.enumerated() {
-            print("\(index + 1): \(item)")
+            print("\(index + 1): \(itemNameProvider(item))")
         }
 
         let selectedIndex = Int(readLine(strippingNewline: true) ?? "0") ?? 0
@@ -104,6 +130,27 @@ class DefaultCodeGenerator {
 
         let selectedItem = items[selectedIndex - 1]
         return selectedItem
+    }
+
+    func createNameFromViewController(_ viewControllerNode: XMLElement) -> String {
+        let defaultViewSuffix = "Screen"
+
+        guard let customClass = viewControllerNode.attribute(forName: "customClass")?.stringValue else {
+            print("Unable to identify customClass from viewController node element.")
+            return defaultViewSuffix
+        }
+
+        return customClass.replacingOccurrences(of: "ViewController", with: defaultViewSuffix)
+    }
+
+    func createNameFromView(_ view: XMLElement) -> String {
+        let defaultViewSuffix = "Screen"
+        guard let customClass = view.attribute(forName: "customClass")?.stringValue else {
+            print("Unable to identify customClass from viewController node element.")
+            return defaultViewSuffix
+        }
+
+        return customClass
     }
 
     func evaluateViewController(_ viewController: XMLElement) throws -> String? {

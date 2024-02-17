@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  StoryboardContentType.swift
 //  
 //
 //  Created by Aryaman Sharda on 2/14/24.
