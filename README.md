@@ -64,7 +64,7 @@ Please note that while this tool aims to provide a smooth transition from Storyb
 
 Here's an example of the output:
 
-```
+```swift
 import DesignSystem
 import SwiftUI
 
